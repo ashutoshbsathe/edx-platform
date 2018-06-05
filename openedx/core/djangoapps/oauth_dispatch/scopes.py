@@ -1,5 +1,5 @@
 """
-Django OAuth Toolkit scopes backend for the dot-dynamic-scopes package.
+Custom Django OAuth Toolkit scopes backends.
 """
 
 from django.conf import settings
@@ -8,13 +8,16 @@ from django.utils import module_loading
 from oauth2_provider.scopes import SettingsScopes
 
 
-class DynamicScopes(SettingsScopes):
+class ApplicationModelScopes(SettingsScopes):
     """
-    Scopes backend that provides scopes from a Django model.
+    Scopes backend that determines available scopes using the ScopedApplication model.
     """
-    def get_all_scopes(self):
-        return settings.OAUTH2_PROVIDER['SCOPES']
-
-    def get_available_scopes(self, application = None, request = None, *args, **kwargs):
-        return list(self.get_all_scopes().keys())
-
+    def get_available_scopes(self, application=None, request=None, *args, **kwargs):
+        """ Returns valid scopes configured for the given application. """
+        application_scopes = getattr(application, 'scopes')
+        if application_scopes:
+            default_scopes = self.get_default_scopes()
+            all_scopes = self.get_all_scopes().keys()
+            return set(application_scopes + default_scopes).intersection(all_scopes)
+        else:
+            return super(ApplicationModelScopes, self).get_available_scopes(application, request, *args, **kwargs)

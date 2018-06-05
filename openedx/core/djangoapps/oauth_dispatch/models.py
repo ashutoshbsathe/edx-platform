@@ -5,17 +5,14 @@ Specialized models for oauth_dispatch djangoapp
 from datetime import datetime
 
 from django.db import models
+from django.utils.translation import ugettext_lazy as _
+from django_mysql.models import ListCharField
+from oauth2_provider.models import AbstractApplication
 from oauth2_provider.settings import oauth2_settings
 from pytz import utc
-from oauth2_provider.models import AccessToken
-from organizations.models import Organization
-from django.utils.translation import ugettext_lazy as _
-from oauth2_provider.models import AbstractApplication
-from oauth2_provider.scopes import get_scopes_backend
 
-# define default separator used to store lists
-# IMPORTANT: Do not change this after data has been populated in database
-_DEFAULT_SEPARATOR = ' '
+from openedx.core.djangoapps.oauth_dispatch.toggles import OAUTH2_SWITCHES, UNEXPIRED_RESTRICTED_APPLICATIONS
+from openedx.core.djangoapps.request_cache import get_request_or_stub
 
 
 class RestrictedApplication(models.Model):
@@ -38,12 +35,11 @@ class RestrictedApplication(models.Model):
         )
 
     @classmethod
-    def set_access_token_as_expired(cls, access_token):
-        """
-        For access_tokens for RestrictedApplications, put the expire timestamp into the beginning of the epoch
-        which is Jan. 1, 1970
-        """
-        access_token.expires = datetime(1970, 1, 1, tzinfo=utc)
+    def expire_access_token(cls, application):
+        set_token_expired = not OAUTH2_SWITCHES.is_enabled(UNEXPIRED_RESTRICTED_APPLICATIONS)
+        jwt_not_requested = get_request_or_stub().POST.get('token_type', '').lower() != 'jwt'
+        restricted_application = cls.objects.filter(application=application).exists()
+        return restricted_application and (jwt_not_requested or set_token_expired)
 
     @classmethod
     def verify_access_token_as_expired(cls, access_token):
@@ -54,71 +50,57 @@ class RestrictedApplication(models.Model):
         return access_token.expires == datetime(1970, 1, 1, tzinfo=utc)
 
 
-class OauthRestrictedApplication(AbstractApplication):
+class ScopedApplication(AbstractApplication):
     """
-    Application model for use with Django OAuth Toolkit that allows the scopes
-    available to an application to be restricted on a per-application basis.
+    Custom Django OAuth Toolkit Application model that enables the definition
+    of scopes that are authorized for the given Application.
     """
-    allowed_scope = models.TextField(blank = True)
+    FILTER_USER_ME = 'user:me'
 
-    def _get_list_from_delimited_string(self, delimited_string, separator=_DEFAULT_SEPARATOR):
-        """
-        Helper to return a list from a delimited string
-        """
-
-        return delimited_string.split(separator) if delimited_string else []
-
-    @classmethod
-    def is_token_oauth_restricted_application(cls, token):
-        """
-        Returns if token is issued to a RestriectedApplication
-        """
-
-        if isinstance(token, basestring):
-            # if string is passed in, do the look up
-            token_obj = AccessToken.objects.get(token=token)
-        else:
-            token_obj = token
-
-        return cls.get_restricted_application(token_obj.application) is not None
-
-    @classmethod
-    def get_restricted_application(cls, application):
-        """
-        For a given application, get the related restricted application
-        """
-        return OauthRestrictedApplication.objects.filter(id=application.id)
-
-    @property
-    def allowed_scopes(self):
-        """
-        Translate space delimited string to a list
-        """
-        all_scopes = set(get_scopes_backend().get_all_scopes().keys())
-        app_scopes = set(self._get_list_from_delimited_string(self.allowed_scope))
-        return app_scopes.intersection(all_scopes)
-
-
-class OauthRestrictOrganization(models.Model):
-
-    CONTENT_PROVIDER = 'content_provider'
-    USER_PROVIDER = 'user_provider'
-    ORGANIZATION_PROVIDER_TYPES = (
-        (CONTENT_PROVIDER, _('Content Provider')),
-        (USER_PROVIDER, _('User Provider')),
+    scopes = ListCharField(
+        base_field=models.CharField(max_length=32),
+        size=10,
+        max_length=(10 * 33),  # 10 * 32 character scopes, plus commas
+        help_text=_('Comma-separated list of scopes that this application will be allowed to request.'),
     )
-    application = models.ForeignKey(oauth2_settings.APPLICATION_MODEL, null=False)
-
-    _org_associations = models.ManyToManyField(Organization)
-
-    organization_type = models.CharField(max_length=32, choices=ORGANIZATION_PROVIDER_TYPES, default=CONTENT_PROVIDER)
 
     @property
-    def org_associations(self):
+    def authorization_filters(self):
         """
-        Translate space delimited string to a list
+        Return the list of authorization filters for this application.
         """
-        org_associations_list = []
-        for each in self._org_associations.all():
-            org_associations_list.append(each.name)
-        return org_associations_list
+        filters = [':'.join([org.provider_type, org.short_name]) for org in self.organizations.all()]
+        if self.authorization_grant_type == self.GRANT_CLIENT_CREDENTIALS:
+            filters.append(self.FILTER_USER_ME)
+        return filters
+
+
+class ScopedApplicationOrganization(models.Model):
+    """
+    Associates an organization to a given ScopedApplication including the
+    provider type of the organization so that organization-based filters
+    can be added to access tokens provided to the given Application.
+
+    See /openedx/core/djangoapps/oauth_dispatch/docs/decisions/0007-include-organizations-in-tokens.rst
+    for the intended use of this model.
+    """
+    CONTENT_PROVIDER_TYPE = 'content_provider'
+    ORGANIZATION_PROVIDER_TYPES = (
+        (CONTENT_PROVIDER_TYPE, _('Content Provider')),
+    )
+
+    # In practice, short_name should match the short_name of an Organization model.
+    # This is not a foreign key because the organizations app is not installed by default.
+    short_name = models.CharField(
+        max_length=255,
+        help_text=_('The short_name of an existing Organization.'),
+    )
+    provider_type = models.CharField(
+        max_length=32,
+        choices=ORGANIZATION_PROVIDER_TYPES,
+        default=CONTENT_PROVIDER_TYPE,
+    )
+    application = models.ForeignKey(
+        oauth2_settings.APPLICATION_MODEL,
+        related_name='organizations',
+    )

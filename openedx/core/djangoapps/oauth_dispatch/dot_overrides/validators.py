@@ -11,11 +11,12 @@ from django.db.models.signals import pre_save
 from django.dispatch import receiver
 from oauth2_provider.models import AccessToken
 from oauth2_provider.oauth2_validators import OAuth2Validator
+from oauth2_provider.scopes import get_scopes_backend
 from pytz import utc
 from ratelimitbackend.backends import RateLimitMixin
-from django.conf import settings
-from ..models import RestrictedApplication, OauthRestrictedApplication
-from openedx.core.djangoapps.oauth_dispatch.utils import is_oauth_scope_enforcement_enabled
+
+from ..models import RestrictedApplication
+
 
 @receiver(pre_save, sender=AccessToken)
 def on_access_token_presave(sender, instance, *args, **kwargs):  # pylint: disable=unused-argument
@@ -25,8 +26,9 @@ def on_access_token_presave(sender, instance, *args, **kwargs):  # pylint: disab
 
     We do this as a pre-save hook on the ORM
     """
-    if not is_oauth_scope_enforcement_enabled():
-        RestrictedApplication.set_access_token_as_expired(instance)
+    if RestrictedApplication.expire_access_token(instance.application):
+        instance.expires = datetime(1970, 1, 1, tzinfo=utc)
+
 
 # TODO: Remove Django 1.11 upgrade shim
 # SHIM: Allow users that are inactive to still authenticate while keeping rate-limiting functionality.
@@ -109,7 +111,7 @@ class EdxOAuth2Validator(OAuth2Validator):
 
         super(EdxOAuth2Validator, self).save_bearer_token(token, request, *args, **kwargs)
 
-        if not is_oauth_scope_enforcement_enabled():
+        if RestrictedApplication.expire_access_token(request.client):
             # Since RestrictedApplications will override the DOT defined expiry, so that access_tokens
             # are always expired, we need to re-read the token from the database and then calculate the
             # expires_in (in seconds) from what we stored in the database. This value should be a negative
@@ -118,6 +120,7 @@ class EdxOAuth2Validator(OAuth2Validator):
             access_token = AccessToken.objects.get(token=token['access_token'])
             utc_now = datetime.utcnow().replace(tzinfo=utc)
             expires_in = (access_token.expires - utc_now).total_seconds()
+
             # assert that RestrictedApplications only issue expired tokens
             # blow up processing if we see otherwise
             assert expires_in < 0
@@ -127,3 +130,10 @@ class EdxOAuth2Validator(OAuth2Validator):
         # Restore the original request attributes
         request.grant_type = grant_type
         request.user = user
+
+    def validate_scopes(self, client_id, scopes, client, request, *args, **kwargs):
+        """
+        Ensure required scopes are permitted (as specified in the settings file)
+        """
+        available_scopes = get_scopes_backend().get_available_scopes(application=client, request=request)
+        return set(scopes).issubset(set(available_scopes))
