@@ -6,11 +6,13 @@ from celery.utils.log import get_task_logger  # pylint: disable=no-name-in-modul
 from django.conf import settings
 from django.contrib.auth.models import User
 from django.contrib.sites.models import Site
-from django.core.exceptions import ImproperlyConfigured
 from edx_rest_api_client import exceptions
 from edx_rest_api_client.client import EdxRestApiClient
-from provider.oauth2.models import Client
 
+from lms.djangoapps.certificates.models import GeneratedCertificate
+from lms.djangoapps.grades.models import PersistentCourseGrade
+from openedx.core.djangoapps.certificates.api import certificates_viewable_for_course
+from openedx.core.djangoapps.content.course_overviews.models import CourseOverview
 from openedx.core.djangoapps.credentials.models import CredentialsApiConfig
 from openedx.core.djangoapps.credentials.utils import get_credentials
 from openedx.core.djangoapps.programs.utils import ProgramProgressMeter
@@ -25,6 +27,9 @@ ROUTING_KEY = getattr(settings, 'CREDENTIALS_GENERATION_ROUTING_KEY', None)
 # time of 2047 seconds (about 30 minutes). Setting this to None could yield
 # unwanted behavior: infinite retries.
 MAX_RETRIES = 11
+
+PROGRAM_CERTIFICATE = 'program'
+COURSE_CERTIFICATE = 'course-run'
 
 
 def get_api_client(api_config, user):
@@ -98,7 +103,10 @@ def award_program_certificate(client, username, program_uuid):
     """
     client.credentials.post({
         'username': username,
-        'credential': {'program_uuid': program_uuid},
+        'credential': {
+            'type': PROGRAM_CERTIFICATE,
+            'program_uuid': program_uuid
+        },
         'attributes': []
     })
 
@@ -205,3 +213,58 @@ def award_program_certificates(self, username):
         LOGGER.info('User %s is not eligible for any new program certificates', username)
 
     LOGGER.info('Successfully completed the task award_program_certificates for username %s', username)
+
+
+@task(bind=True, ignore_result=True, routing_key=ROUTING_KEY)
+def award_course_certificates(self, username, course_run_key):
+    LOGGER.info('Running task award_course_certificates for username %s', username)
+
+    countdown = 2 ** self.request.retries
+
+    # If the credentials config model is disabled for this
+    # feature, it may indicate a condition where processing of such tasks
+    # has been temporarily disabled.  Since this is a recoverable situation,
+    # mark this task for retry instead of failing it altogether.
+
+    if not CredentialsApiConfig.current().is_learner_issuance_enabled:
+        LOGGER.warning(
+            'Task award_course_certificates cannot be executed when credentials issuance is disabled in API config',
+        )
+        raise self.retry(countdown=countdown, max_retries=MAX_RETRIES)
+
+    try:
+        # Get the cert for the course key and username if it's both passing and available in professional/verified
+        # TODO check the indexes on Generatedcertificate
+        certificate = GeneratedCertificate.eligible_certificates.get(
+            user__username=username,
+            course_id=course_run_key
+        )
+        if certificate and certificate.mode in ['verified', 'professional']:
+            try:
+                course_overview = CourseOverview.get_from_id(course_run_key)
+            except (CourseOverview.DoesNotExist, IOError):
+                LOGGER.exception(
+                    'Task award_course_certificates was called without course overview data for course %s',
+                    course_run_key
+                )
+                return
+            if certificates_viewable_for_course(course_overview):
+                credentials_client = get_api_client(
+                    CredentialsApiConfig.current(),
+                    User.objects.get(username=settings.CREDENTIALS_SERVICE_USERNAME)  # pylint: disable=no-member
+                )
+
+                credentials_client.credentials.post({
+                    'username': username,
+                    'status': certificate.status,
+                    'credential': {
+                        'course_run_key': course_run_key,
+                        'mode': certificate.mode,
+                        'type': COURSE_CERTIFICATE,
+                    }
+                })
+                LOGGER.info('Awarded certificate for course %s to user %s', course_run_key, username)
+
+    except Exception as exc:  # pylint: disable=broad-except
+        LOGGER.exception('Failed to determine course certificates to be awarded for user %s', username)
+        raise self.retry(exc=exc, countdown=countdown, max_retries=MAX_RETRIES)
