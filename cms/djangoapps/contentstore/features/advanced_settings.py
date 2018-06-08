@@ -32,7 +32,7 @@ def i_select_advanced_settings(step):
     world.visit(link)
 
 
-@step('I am on the Advanced Course Settings page in Studio$')
+@step('I am on Advanced Course Settings page in Studio$')
 def i_am_on_advanced_course_settings(step):
     step.given('I have opened a new course in Studio')
     step.given('I select the Advanced Settings')
@@ -56,23 +56,6 @@ def create_JSON_object(step, key):
 @step('I create a non-JSON value not in quotes$')
 def create_value_not_in_quotes(step):
     change_display_name_value(step, 'quote me')
-
-
-@step('I see default advanced settings$')
-def i_see_default_advanced_settings(step):
-    # Test only a few of the existing properties (there are around 34 of them)
-    assert_policy_entries(
-        [ADVANCED_MODULES_KEY, DISPLAY_NAME_KEY, "Show Calculator"], ["[]", DISPLAY_NAME_VALUE, "false"])
-
-
-@step('the settings are alphabetized$')
-def they_are_alphabetized(step):
-    key_elements = world.css_find(KEY_CSS)
-    all_keys = []
-    for key in key_elements:
-        all_keys.append(key.value)
-
-    assert_equal(sorted(all_keys), all_keys, "policy keys were not sorted")
 
 
 @step('it is displayed as formatted$')
