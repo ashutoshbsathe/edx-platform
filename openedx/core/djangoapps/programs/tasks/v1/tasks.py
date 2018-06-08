@@ -10,7 +10,6 @@ from edx_rest_api_client import exceptions
 from edx_rest_api_client.client import EdxRestApiClient
 
 from lms.djangoapps.certificates.models import GeneratedCertificate
-from lms.djangoapps.grades.models import PersistentCourseGrade
 from openedx.core.djangoapps.certificates.api import certificates_viewable_for_course
 from openedx.core.djangoapps.content.course_overviews.models import CourseOverview
 from openedx.core.djangoapps.credentials.models import CredentialsApiConfig
@@ -233,10 +232,15 @@ def award_course_certificates(self, username, course_run_key):
         raise self.retry(countdown=countdown, max_retries=MAX_RETRIES)
 
     try:
+        try:
+            user = User.objects.get(username=username)
+        except User.DoesNotExist:
+            LOGGER.exception('Task award_course_certificates was called with invalid username %s', username)
+            # Don't retry for this case - just conclude the task.
+            return
         # Get the cert for the course key and username if it's both passing and available in professional/verified
-        # TODO check the indexes on Generatedcertificate
         certificate = GeneratedCertificate.eligible_certificates.get(
-            user__username=username,
+            user=user.id,
             course_id=course_run_key
         )
         if certificate and certificate.mode in ['verified', 'professional']:
@@ -256,9 +260,9 @@ def award_course_certificates(self, username, course_run_key):
 
                 credentials_client.credentials.post({
                     'username': username,
-                    'status': certificate.status,
+                    'status': 'awarded' if certificate.is_valid() else 'revoked',
                     'credential': {
-                        'course_run_key': course_run_key,
+                        'course_run_key': str(course_run_key),
                         'mode': certificate.mode,
                         'type': COURSE_CERTIFICATE,
                     }
