@@ -60,7 +60,7 @@ class CourseDiscoveryTest(AcceptanceTest):
         Make sure you can search for courses.
         """
         self.page.visit()
-        self.assertEqual(len(self.page.result_items), 12)
+        self.assertEqual(len(self.page.result_items), 36)
 
         self.page.search("grass")
         self.assertEqual(len(self.page.result_items), 2)

@@ -13,4 +13,3 @@ urlpatterns = [
         name='openedx.journals.bundle_about',
     ),
 ]
-
