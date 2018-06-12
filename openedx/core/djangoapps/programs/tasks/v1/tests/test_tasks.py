@@ -13,12 +13,15 @@ from edx_oauth2_provider.tests.factories import ClientFactory
 from edx_rest_api_client import exceptions
 from edx_rest_api_client.client import EdxRestApiClient
 
+from lms.djangoapps.certificates.tests.factories import GeneratedCertificateFactory
 from openedx.core.djangoapps.catalog.tests.mixins import CatalogIntegrationMixin
+from openedx.core.djangoapps.content.course_overviews.tests.factories import CourseOverviewFactory
 from openedx.core.djangoapps.credentials.tests.mixins import CredentialsApiConfigMixin
 from openedx.core.djangoapps.programs.tasks.v1 import tasks
 from openedx.core.djangoapps.site_configuration.tests.factories import SiteFactory
 from openedx.core.djangolib.testing.utils import skip_unless_lms
 from student.tests.factories import UserFactory
+
 
 CREDENTIALS_INTERNAL_SERVICE_URL = 'https://credentials.example.com'
 TASKS_MODULE = 'openedx.core.djangoapps.programs.tasks.v1.tasks'
@@ -324,3 +327,158 @@ class AwardProgramCertificatesTestCase(CatalogIntegrationMixin, CredentialsApiCo
         tasks.award_program_certificates.delay(self.student.username).get()
 
         self.assertEqual(mock_award_program_certificate.call_count, 2)
+
+
+@skip_unless_lms
+class PostCourseCertificateTestCase(TestCase):
+    """
+    Test the award_program_certificate function
+    """
+
+    def setUp(self):
+        self.student = UserFactory.create(username='test-student')
+        self.course = CourseOverviewFactory.create(
+            self_paced=True  # Any option to allow the certificate to be viewable for the course
+        )
+        self.certificate = GeneratedCertificateFactory(
+            user=self.student,
+            mode='verified',
+            course_id=self.course.id,
+            status='downloadable'
+        )
+
+    @httpretty.activate
+    def test_post_course_certificate(self):
+        """
+        Ensure the correct API call gets made
+        """
+        test_client = EdxRestApiClient('http://test-server', jwt='test-token')
+
+        httpretty.register_uri(
+            httpretty.POST,
+            'http://test-server/credentials/',
+        )
+
+        tasks.post_course_certificate(test_client, self.student.username, self.certificate)
+
+        expected_body = {
+            'username': self.student.username,
+            'status': 'awarded',
+            'credential': {
+                'course_run_key': str(self.certificate.course_id),
+                'mode': self.certificate.mode,
+                'type': tasks.COURSE_CERTIFICATE,
+            }
+        }
+        self.assertEqual(json.loads(httpretty.last_request().body), expected_body)
+
+
+@skip_unless_lms
+@mock.patch(TASKS_MODULE + '.post_course_certificate')
+@override_settings(CREDENTIALS_SERVICE_USERNAME='test-service-username')
+class AwardCourseCertificatesTestCase(CredentialsApiConfigMixin, TestCase):
+    """
+    Test the award_course_certificates celery task
+    """
+
+    def setUp(self):
+        super(AwardCourseCertificatesTestCase, self).setUp()
+
+        self.course = CourseOverviewFactory.create(
+            self_paced=True  # Any option to allow the certificate to be viewable for the course
+        )
+        self.student = UserFactory.create(username='test-student')
+        # Instantiate the Certificate first so that the config doesn't execute issuance
+        self.certificate = GeneratedCertificateFactory.create(
+            user=self.student,
+            mode='verified',
+            course_id=self.course.id,
+            status='downloadable'
+        )
+
+        self.create_credentials_config()
+        self.site = SiteFactory()
+
+        ClientFactory.create(name='credentials')
+        UserFactory.create(username=settings.CREDENTIALS_SERVICE_USERNAME)
+
+    def test_award_course_certificates(self, mock_post_course_certificate):
+        """
+        Tests the API POST method is called with appropriate params when configured properly
+        """
+
+        """
+        Ensure the correct API call gets made
+        """
+        tasks.award_course_certificates.delay(self.student.username, self.course.id).get()
+        call_args, _ = mock_post_course_certificate.call_args
+        self.assertEqual(call_args[1], self.student.username)
+        self.assertEqual(call_args[2], self.certificate)
+
+    def test_award_course_cert_not_called_if_disabled(self, mock_post_course_certificate):
+        """
+        Test that the post method is never called if the config is disabled
+        """
+        self.create_credentials_config(enabled=False)
+        with mock.patch(TASKS_MODULE + '.LOGGER.warning') as mock_warning:
+            with self.assertRaises(MaxRetriesExceededError):
+                tasks.award_course_certificates.delay(self.student.username, self.course.id).get()
+        self.assertTrue(mock_warning.called)
+        self.assertFalse(mock_post_course_certificate.called)
+
+    def test_award_course_cert_not_called_if_user_not_found(self, mock_post_course_certificate):
+        """
+        Test that the post method is never called if the user isn't found by username
+        """
+        with mock.patch(TASKS_MODULE + '.LOGGER.exception') as mock_exception:
+            # Use a random username here since this user won't be found in the DB
+            tasks.award_course_certificates.delay('random_username', self.course.id).get()
+        self.assertTrue(mock_exception.called)
+        self.assertFalse(mock_post_course_certificate.called)
+
+    def test_award_course_cert_not_called_if_certificate_not_found(self, mock_post_course_certificate):
+        """
+        Test that the post method is never called if the certificate doesn't exist for the user and course
+        """
+        self.certificate.delete()
+        with mock.patch(TASKS_MODULE + '.LOGGER.exception') as mock_exception:
+            tasks.award_course_certificates.delay(self.student.username, self.course.id).get()
+        self.assertTrue(mock_exception.called)
+        self.assertFalse(mock_post_course_certificate.called)
+
+    def test_award_course_cert_not_called_if_course_overview_not_found(self, mock_post_course_certificate):
+        """
+        Test that the post method is never called if the CourseOverview isn't found
+        """
+        self.course.delete()
+        with mock.patch(TASKS_MODULE + '.LOGGER.exception') as mock_exception:
+            # Use the certificate course id here since the course will be deleted
+            tasks.award_course_certificates.delay(self.student.username, self.certificate.course_id).get()
+        self.assertTrue(mock_exception.called)
+        self.assertFalse(mock_post_course_certificate.called)
+
+    def test_award_course_cert_not_called_if_certificated_not_verified_mode(self, mock_post_course_certificate):
+        """
+        Test that the post method is never called if the GeneratedCertificate is an 'audit' cert
+        """
+        # Temporarily disable the config so the signal isn't handled from .save
+        self.create_credentials_config(enabled=False)
+        self.certificate.mode = 'audit'
+        self.certificate.save()
+        self.create_credentials_config()
+
+        tasks.award_course_certificates.delay(self.student.username, self.certificate.course_id).get()
+        self.assertFalse(mock_post_course_certificate.called)
+
+    def test_award_course_cert_not_called_if_certificate_not_viewable(self, mock_post_course_certificate):
+        """
+        Test that the post method is never called if the CourseOverview doesn't have viewable certs
+        """
+        # Disable self pacing as this is what returns True for certificates_viewable_for_course
+        self.course.self_paced = False
+        self.course.save()
+        with mock.patch(TASKS_MODULE + '.LOGGER.info') as mock_info:
+            # Use the certificate course id here since the course will be deleted
+            tasks.award_course_certificates.delay(self.student.username, self.certificate.course_id).get()
+        self.assertTrue(mock_info.called)
+        self.assertFalse(mock_post_course_certificate.called)

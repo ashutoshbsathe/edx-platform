@@ -214,6 +214,21 @@ def award_program_certificates(self, username):
     LOGGER.info('Successfully completed the task award_program_certificates for username %s', username)
 
 
+def post_course_certificate(client, username, certificate):
+    """
+    POST a certificate that has been updated to Credentials
+    """
+    client.credentials.post({
+        'username': username,
+        'status': 'awarded' if certificate.is_valid() else 'revoked',  # Only need the two options at this time
+        'credential': {
+            'course_run_key': str(certificate.course_id),
+            'mode': certificate.mode,
+            'type': COURSE_CERTIFICATE,
+        }
+    })
+
+
 @task(bind=True, ignore_result=True, routing_key=ROUTING_KEY)
 def award_course_certificates(self, username, course_run_key):
     LOGGER.info('Running task award_course_certificates for username %s', username)
@@ -239,11 +254,19 @@ def award_course_certificates(self, username, course_run_key):
             # Don't retry for this case - just conclude the task.
             return
         # Get the cert for the course key and username if it's both passing and available in professional/verified
-        certificate = GeneratedCertificate.eligible_certificates.get(
-            user=user.id,
-            course_id=course_run_key
-        )
-        if certificate and certificate.mode in ['verified', 'professional']:
+        try:
+            certificate = GeneratedCertificate.eligible_certificates.get(
+                user=user.id,
+                course_id=course_run_key
+            )
+        except GeneratedCertificate.DoesNotExist:
+            LOGGER.exception(
+                'Task award_course_certificates was called without Certificate found for %s to user %s',
+                course_run_key,
+                username
+            )
+            return
+        if certificate.mode in GeneratedCertificate.VERIFIED_CERTS_MODES:
             try:
                 course_overview = CourseOverview.get_from_id(course_run_key)
             except (CourseOverview.DoesNotExist, IOError):
@@ -255,20 +278,14 @@ def award_course_certificates(self, username, course_run_key):
             if certificates_viewable_for_course(course_overview):
                 credentials_client = get_api_client(
                     CredentialsApiConfig.current(),
-                    User.objects.get(username=settings.CREDENTIALS_SERVICE_USERNAME)  # pylint: disable=no-member
+                    User.objects.get(username=settings.CREDENTIALS_SERVICE_USERNAME)
                 )
+                post_course_certificate(credentials_client, username, certificate)
 
-                credentials_client.credentials.post({
-                    'username': username,
-                    'status': 'awarded' if certificate.is_valid() else 'revoked',
-                    'credential': {
-                        'course_run_key': str(course_run_key),
-                        'mode': certificate.mode,
-                        'type': COURSE_CERTIFICATE,
-                    }
-                })
                 LOGGER.info('Awarded certificate for course %s to user %s', course_run_key, username)
-
+            else:
+                LOGGER.info('Certificates not viewable for course run %s', course_run_key)
+                return
     except Exception as exc:  # pylint: disable=broad-except
         LOGGER.exception('Failed to determine course certificates to be awarded for user %s', username)
         raise self.retry(exc=exc, countdown=countdown, max_retries=MAX_RETRIES)
