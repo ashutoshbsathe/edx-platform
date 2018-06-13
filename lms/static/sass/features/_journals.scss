@@ -27,7 +27,7 @@
           min-height: 100%;
         }
 
-        &:before {
+        &::before {
           content: '';
           position: absolute;
           left: 0;
@@ -129,8 +129,8 @@
       }
     }
 
-    &:before,
-    &:after {
+    &::before,
+    &::after {
       box-shadow: 0 2px 2px 0 rgba(0, 0, 0, 0.2);
       content: '';
       position: absolute;
@@ -140,13 +140,13 @@
       border: 1px solid #b5b5b5;
     }
 
-    &:before {
+    &::before {
       left: -5px;
       top: -5px;
       z-index: -1;
     }
 
-    &:after {
+    &::after {
       left: -10px;
       top: -10px;
       z-index: -2;
@@ -161,7 +161,7 @@
             opacity: 1;
           }
 
-          &:before {
+          &::before {
             opacity: 0.6;
           }
         }
