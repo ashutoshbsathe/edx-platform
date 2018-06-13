@@ -1,6 +1,5 @@
 // journal catalog listing
 .journal-list {
-
   .journals-listing-item {
     box-sizing: border-box;
     box-shadow: 1px 2px 5px #ccc;
@@ -40,6 +39,7 @@
           opacity: 0;
           transition: all 0.2s ease-out;
         }
+
         .learn-more {
           left: calc(50% - 100px);
           box-sizing: border-box;
@@ -160,8 +160,9 @@
           .learn-more {
             opacity: 1;
           }
+
           &:before {
-            opacity: .6;
+            opacity: 0.6;
           }
         }
       }
