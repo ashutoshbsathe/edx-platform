@@ -137,4 +137,4 @@ class CertChangedReceiverTest(TestCase):
 
         self.assertEqual(mock_is_learner_issuance_enabled.call_count, 1)
         self.assertEqual(mock_task.call_count, 1)
-        self.assertEqual(mock_task.call_args[0], (TEST_USERNAME,TEST_COURSE_KEY))
+        self.assertEqual(mock_task.call_args[0], (TEST_USERNAME, TEST_COURSE_KEY))
