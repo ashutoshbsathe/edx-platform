@@ -63,7 +63,7 @@ class CourseDiscoveryTest(AcceptanceTest):
         self.assertEqual(len(self.page.result_items), 36)
 
         self.page.search("grass")
-        self.assertEqual(len(self.page.result_items), 2)
+        self.assertEqual(len(self.page.result_items), 6)
 
         self.page.clear_search()
-        self.assertEqual(len(self.page.result_items), 12)
+        self.assertEqual(len(self.page.result_items), 36)
