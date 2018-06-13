@@ -309,6 +309,7 @@ class IndexPageProgramsTests(SiteMixin, ModuleStoreTestCase):
 
 
 @attr(shard=1)
+@patch.dict(settings.FEATURES, {"ENABLE_JOURNAL_INTEGRATION": True})
 class MarketingPageJournalsTests(SiteMixin, ModuleStoreTestCase):
     """
     Tests for Journals Listing in Marketing Pages.
@@ -321,7 +322,7 @@ class MarketingPageJournalsTests(SiteMixin, ModuleStoreTestCase):
 
     def assert_journal_data(self, response):
         """
-        checks the journal data in given response
+        Checks the journal data in given response
         """
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Bundle")
@@ -333,7 +334,6 @@ class MarketingPageJournalsTests(SiteMixin, ModuleStoreTestCase):
             self.assertContains(response, journal["title"])
             self.assertContains(response, journal["organization"])
 
-    @patch.dict(settings.FEATURES, {"ENABLE_JOURNAL_INTEGRATION": True})
     @patch('student.views.management.get_journals')
     @patch('student.views.management.get_journal_bundles')
     def test_journals_index_page(self, mock_journal_bundles, mock_journals):
@@ -346,7 +346,6 @@ class MarketingPageJournalsTests(SiteMixin, ModuleStoreTestCase):
         response = self.client.get(reverse('root'))
         self.assert_journal_data(response)
 
-    @patch.dict(settings.FEATURES, {"ENABLE_JOURNAL_INTEGRATION": True})
     @patch('openedx.features.journals.api.DiscoveryApiClient.get_journals')
     @patch('openedx.features.journals.api.DiscoveryApiClient.get_journal_bundles')
     def test_journals_course(self, mock_journal_bundles, mock_journals):

@@ -11,7 +11,7 @@ from openedx.features.journals.tests.utils import get_mocked_journal_access
 
 @mock.patch.dict(settings.FEATURES, {"ENABLE_JOURNAL_INTEGRATION": True})
 class JournalLearnerDashboardTest(LoginEnrollmentTestCase):
-    """ Tests for the student account views that update the user's account information. """
+    """ Tests for the Leaner Dashboard views for journals data """
 
     def setUp(self):
         super(JournalLearnerDashboardTest, self).setUp()
@@ -26,7 +26,7 @@ class JournalLearnerDashboardTest(LoginEnrollmentTestCase):
         response = self.client.get(path=self.path)
         self.assertEqual(response.status_code, 404)
 
-    @mock.patch('openedx.features.journals.views.learner_dashboard.fetch_journal_access')
+    @mock.patch("openedx.features.journals.views.learner_dashboard.fetch_journal_access")
     def test_with_empty_journals(self, mocked_journal_access):
         """
         Test the learner dashboard without journal access data.
@@ -37,7 +37,7 @@ class JournalLearnerDashboardTest(LoginEnrollmentTestCase):
         self.assertContains(response, "My Journals")
         self.assertContains(response, "You have not purchased access to any journals yet.")
 
-    @mock.patch('openedx.features.journals.views.learner_dashboard.fetch_journal_access')
+    @mock.patch("openedx.features.journals.views.learner_dashboard.fetch_journal_access")
     def test_with_with_valid_data(self, mocked_journal_access):
         """
         Test the learner dashboard with journal access data.

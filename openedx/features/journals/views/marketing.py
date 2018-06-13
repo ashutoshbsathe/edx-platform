@@ -12,7 +12,7 @@ from lms.djangoapps.commerce.utils import EcommerceService
 
 def bundle_about(request, bundle_uuid):
     """
-    view for journal bundle about page.
+    Journal bundle about page's view.
     """
     bundle = get_journal_bundles(request.site, bundle_uuid=bundle_uuid)
     if not bundle:
@@ -28,7 +28,7 @@ def bundle_about(request, bundle_uuid):
 
 def extend_bundle(bundle):
     """
-    extend the pricing data in journal bundle.
+    Extend the pricing data in journal bundle.
     """
     applicable_seat_types = bundle['applicable_seat_types']
     matching_seats = [
@@ -48,7 +48,7 @@ def extend_bundle(bundle):
 
 
 def get_matching_seat(course, seat_types):
-    """ Filtered our the course runs on the bases of applicable_seat_types """
+    """ Filtered out the course runs on the bases of applicable_seat_types """
     for course_run in course['course_runs']:
         for seat in course_run['seats']:
             if seat['type'] in seat_types:
@@ -57,7 +57,7 @@ def get_matching_seat(course, seat_types):
 
 def get_pricing_data(skus):
     """
-     Get the pricing data from ecommerce for given skus.
+    Get the pricing data from ecommerce for given skus.
     """
     user = User.objects.get(username=settings.ECOMMERCE_SERVICE_WORKER_USERNAME)
     api = ecommerce_api_client(user)
