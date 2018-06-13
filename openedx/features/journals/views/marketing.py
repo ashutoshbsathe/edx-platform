@@ -1,7 +1,7 @@
+""" Marketing view for journal bundle """
 from django.conf import settings
 from django.contrib.auth.models import User
 from django.http import Http404
-from util.cache import cache, cache_if_anonymous
 
 from edxmako.shortcuts import render_to_response
 from openedx.core.djangoapps.catalog.models import CatalogIntegration
@@ -11,6 +11,9 @@ from lms.djangoapps.commerce.utils import EcommerceService
 
 
 def bundle_about(request, bundle_uuid):
+    """
+    view for journal bundle about page.
+    """
     bundle = get_journal_bundles(request.site, bundle_uuid=bundle_uuid)
     if not bundle:
         raise Http404
@@ -24,6 +27,9 @@ def bundle_about(request, bundle_uuid):
 
 
 def extend_bundle(bundle):
+    """
+    extend the pricing data in journal bundle.
+    """
     applicable_seat_types = bundle['applicable_seat_types']
     matching_seats = [
         get_matching_seat(course, applicable_seat_types)
@@ -42,6 +48,7 @@ def extend_bundle(bundle):
 
 
 def get_matching_seat(course, seat_types):
+    """ Filtered our the course runs on the bases of applicable_seat_types """
     for course_run in course['course_runs']:
         for seat in course_run['seats']:
             if seat['type'] in seat_types:
@@ -49,6 +56,9 @@ def get_matching_seat(course, seat_types):
 
 
 def get_pricing_data(skus):
+    """
+     Get the pricing data from ecommerce for given skus.
+    """
     user = User.objects.get(username=settings.ECOMMERCE_SERVICE_WORKER_USERNAME)
     api = ecommerce_api_client(user)
     pricing_data = api.baskets.calculate.get(sku=skus, is_anonymous=True)

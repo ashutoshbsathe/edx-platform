@@ -1,3 +1,4 @@
+""" Returns the dummy data for journals endpoint of discovery."""
 
 import uuid
 

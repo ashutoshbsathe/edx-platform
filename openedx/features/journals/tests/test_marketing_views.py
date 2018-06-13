@@ -1,7 +1,7 @@
 """ Tests for journals marketing views. """
 
-import mock
 import uuid
+import mock
 
 from django.conf import settings
 from django.core.urlresolvers import reverse

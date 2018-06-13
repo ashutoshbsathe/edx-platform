@@ -83,6 +83,9 @@ class DiscoveryApiClient(object):
             return []
 
     def get_journal_bundles(self, uuid=''):
+        """
+        get_journal_bundles from discovery on the base of uuid (optional)
+        """
         try:
             response = self.client.journal_bundles(uuid).get()
         except (HttpClientError, HttpServerError) as err:
@@ -115,7 +118,7 @@ class JournalsApiClient(object):
         return User.objects.get(username=JOURNAL_WORKER_USERNAME)
 
 
-def fetch_journal_access(site, user):
+def fetch_journal_access(site, user):   # pylint: disable=unused-argument
     """
     Retrieve journal access record for given user.
     Retrieve if from the cache if present, otherwise send GET request to the journal access api
