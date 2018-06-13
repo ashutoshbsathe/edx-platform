@@ -113,7 +113,10 @@ class AwardProgramCertificateTestCase(TestCase):
 
         expected_body = {
             'username': test_username,
-            'credential': {'program_uuid': 123},
+            'credential': {
+                'program_uuid': 123,
+                'type': tasks.PROGRAM_CERTIFICATE,
+            },
             'attributes': []
         }
         self.assertEqual(json.loads(httpretty.last_request().body), expected_body)
