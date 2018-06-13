@@ -70,7 +70,7 @@ def handle_course_cert_changed(sender, user, course_key, mode, status, **kwargs)
             mode:
                 mode / certificate type, e.g. "verified"
             status:
-                either "downloadable" or "generating"
+                "downloadable"
 
         Returns:
             None
@@ -93,5 +93,5 @@ def handle_course_cert_changed(sender, user, course_key, mode, status, **kwargs)
         status,
     )
     # import here, because signal is registered at startup, but items in tasks are not yet able to be loaded
-    from openedx.core.djangoapps.programs.tasks.v1.tasks import award_course_certificates
-    award_course_certificates.delay(user.username, course_key)
+    from openedx.core.djangoapps.programs.tasks.v1.tasks import award_course_certificate
+    award_course_certificate.delay(user.username, course_key)

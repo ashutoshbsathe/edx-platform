@@ -81,7 +81,7 @@ class CertAwardedReceiverTest(TestCase):
 @attr(shard=2)
 # The credentials app isn't installed for the CMS.
 @skip_unless_lms
-@mock.patch('openedx.core.djangoapps.programs.tasks.v1.tasks.award_course_certificates.delay')
+@mock.patch('openedx.core.djangoapps.programs.tasks.v1.tasks.award_course_certificate.delay')
 @mock.patch(
     'openedx.core.djangoapps.credentials.models.CredentialsApiConfig.is_learner_issuance_enabled',
     new_callable=mock.PropertyMock,

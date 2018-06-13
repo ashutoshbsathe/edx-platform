@@ -339,7 +339,7 @@ class GeneratedCertificate(models.Model):
     def save(self, *args, **kwargs):
         """
         After the base save() method finishes, fire the COURSE_CERT_AWARDED
-        signal if we are saving a record of a learner passing the course.
+        signal iff we are saving a record of a learner passing the course.
         As well as the COURSE_CERT_CHANGED for any save event.
         """
         super(GeneratedCertificate, self).save(*args, **kwargs)

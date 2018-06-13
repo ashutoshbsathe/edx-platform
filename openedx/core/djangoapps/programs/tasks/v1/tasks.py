@@ -230,8 +230,13 @@ def post_course_certificate(client, username, certificate):
 
 
 @task(bind=True, ignore_result=True, routing_key=ROUTING_KEY)
-def award_course_certificates(self, username, course_run_key):
-    LOGGER.info('Running task award_course_certificates for username %s', username)
+def award_course_certificate(self, username, course_run_key):
+    """
+    This task is designed to be called whenever a student GeneratedCertificate is updated.
+    It can be called independently for a username and a course_run, but is invoked on each GeneratedCertificate.save.
+    """
+
+    LOGGER.info('Running task award_course_certificate for username %s', username)
 
     countdown = 2 ** self.request.retries
 
@@ -242,7 +247,7 @@ def award_course_certificates(self, username, course_run_key):
 
     if not CredentialsApiConfig.current().is_learner_issuance_enabled:
         LOGGER.warning(
-            'Task award_course_certificates cannot be executed when credentials issuance is disabled in API config',
+            'Task award_course_certificate cannot be executed when credentials issuance is disabled in API config',
         )
         raise self.retry(countdown=countdown, max_retries=MAX_RETRIES)
 
@@ -250,7 +255,7 @@ def award_course_certificates(self, username, course_run_key):
         try:
             user = User.objects.get(username=username)
         except User.DoesNotExist:
-            LOGGER.exception('Task award_course_certificates was called with invalid username %s', username)
+            LOGGER.exception('Task award_course_certificate was called with invalid username %s', username)
             # Don't retry for this case - just conclude the task.
             return
         # Get the cert for the course key and username if it's both passing and available in professional/verified
@@ -261,7 +266,7 @@ def award_course_certificates(self, username, course_run_key):
             )
         except GeneratedCertificate.DoesNotExist:
             LOGGER.exception(
-                'Task award_course_certificates was called without Certificate found for %s to user %s',
+                'Task award_course_certificate was called without Certificate found for %s to user %s',
                 course_run_key,
                 username
             )
@@ -271,7 +276,7 @@ def award_course_certificates(self, username, course_run_key):
                 course_overview = CourseOverview.get_from_id(course_run_key)
             except (CourseOverview.DoesNotExist, IOError):
                 LOGGER.exception(
-                    'Task award_course_certificates was called without course overview data for course %s',
+                    'Task award_course_certificate was called without course overview data for course %s',
                     course_run_key
                 )
                 return
@@ -286,6 +291,6 @@ def award_course_certificates(self, username, course_run_key):
             else:
                 LOGGER.info('Certificates not viewable for course run %s', course_run_key)
                 return
-    except Exception as exc:  # pylint: disable=broad-except
+    except Exception as exc:
         LOGGER.exception('Failed to determine course certificates to be awarded for user %s', username)
         raise self.retry(exc=exc, countdown=countdown, max_retries=MAX_RETRIES)
