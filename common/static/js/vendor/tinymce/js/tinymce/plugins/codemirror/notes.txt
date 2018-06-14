@@ -1,0 +1,18 @@
+Observations :
+
+1) There is a plugin called codemirror for tinymce available here : https://github.com/christiaan/tinymce-codemirror
+2) The good thing about the plugin is that you can use any version of codemirror in your code and it will work perfectly fine
+3) This plugin is already in use in the OpenEdx repository. The exact path is given by : https://github.com/edx/edx-platform/tree/master/common/static/js/vendor/tinymce/js/tinymce/plugins/codemirror
+4) I have created a demo sort of repo for this plugin which can be found here : https://github.com/ashutoshbsathe/codemirror-in-tinymce
+5) My demo uses tinymce 4.7.0 and codemirror 5.38.0 and they work really well
+6) We can configure the codemirror to suit our needs and it will be ready to work.
+7) There is a xblock module [or as they like to call it, just an "xblock"] called html_module.py that handles the operation of html editor in openedx,
+   it is located here : https://github.com/edx/edx-platform/blob/master/common/lib/xmodule/xmodule/html_module.py
+8) This is the module that loads the html editor widget and configures both(tinymce and codemirror) editors to work hand in hand with the help of plugin,
+   which I talked earlier(point 1)
+
+"So if it was this easy, why they did not update it on their own ?" :
+Probably, fully fledged HTML editor isn't their selling point and they don't want to invest their time in upgrading something that actually works.
+And also, they might've thought "This is easy stuff" and might've left this responsibility to the system admin who is configuring the server for work.
+This I think is analogous to android kernels. The older kernel works just perfect and hence most OEMs donot invest their time in upgrading the kernel 
+even though the kernel maybe easily "upstream-able" to the latest linux-stable.

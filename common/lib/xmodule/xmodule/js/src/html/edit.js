@@ -123,8 +123,15 @@
            */
           visual: false,
           plugins: "textcolor, link, image, codemirror",
+          external_plugins: {
+            codemirror: 'plugins/codemirror/plugin.js'
+          }
           codemirror: {
-            path: baseUrl + "/js/vendor"
+            path: 'codemirror-5.38.0',
+            indentOnInit: true,
+            config: {
+                lineNumbers: true
+            }
           },
           image_advtab: true,
 
