@@ -45,7 +45,7 @@ function inArray(key, arr)
 			tabSize: 2,
 			indentWithTabs: false,
 			matchBrackets: true,
-            saveCursorPosition: true,
+                        saveCursorPosition: true,
 			styleActiveLine: true ,
             foldGutter: true,
             gutters: ["CodeMirror-linenumbers", "CodeMirror-foldgutter"] 
@@ -142,7 +142,7 @@ function start()
 
 	// Set CodeMirror cursor and bookmark to same position as cursor was in TinyMCE:
 	html = editor.getContent({source_view: true});
-
+        alert(html);
     // [FIX] #6 z-index issue with table panel and source code dialog
     //	editor.selection.getBookmark();
     
