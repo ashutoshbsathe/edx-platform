@@ -122,7 +122,7 @@
           Disable visual aid on borderless table.
            */
           visual: false,
-          plugins: "textcolor, link, image, codemirror",
+          plugins: "textcolor, link, image, codemirror, fullpage",
           external_plugins: {
             codemirror: 'plugins/codemirror/plugin.js'
           },
@@ -165,7 +165,7 @@
           Necessary to avoid stripping of style tags.
            */
           
-          valid_children: "+body[style]",
+          //valid_children: "+body[style]",
           /*
           Allow any elements to be used, e.g. link, script, math
            */
