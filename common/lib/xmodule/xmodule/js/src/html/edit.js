@@ -134,6 +134,12 @@
             }
           },
           image_advtab: true,
+          /*
+          Say good bye to automatically added p tags
+          */
+          force_br_newlines: false,
+          force_p_newlines: false,
+          forced_root_block: '',
 
           /*
           We may want to add "styleselect" when we collect all styles used throughout the LMS
