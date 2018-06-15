@@ -165,7 +165,7 @@
           Necessary to avoid stripping of style tags.
            */
           
-          //valid_children: "+body[style]",
+          valid_children: "+body[style], +head[style], +head[link]",
           /*
           Allow any elements to be used, e.g. link, script, math
            */
