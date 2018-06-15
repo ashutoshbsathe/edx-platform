@@ -125,7 +125,7 @@
           plugins: "textcolor, link, image, codemirror",
           external_plugins: {
             codemirror: 'plugins/codemirror/plugin.js'
-          }
+          },
           codemirror: {
             path: 'codemirror-5.38.0',
             indentOnInit: true,
