@@ -159,7 +159,7 @@
           Necessary to avoid stripping of style tags.
            */
           
-          valid_children: "+*[*]",
+          valid_children: "+body[style]",
           /*
           Allow any elements to be used, e.g. link, script, math
            */
