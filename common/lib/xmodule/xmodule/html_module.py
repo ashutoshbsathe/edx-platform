@@ -259,6 +259,7 @@ class HtmlDescriptor(HtmlBlock, XmlDescriptor, EditingDescriptor):  # pylint: di
             try:
                 with system.resources_fs.open(filepath, encoding='utf-8') as infile:
                     html = infile.read()
+                    log.warning("Following html content is read : \n" + html)
                     # Log a warning if we can't parse the file, but don't error
                     if not check_html(html) and len(html) > 0:
                         msg = "Couldn't parse html in {0}, content = {1}".format(filepath, html)
@@ -296,6 +297,7 @@ class HtmlDescriptor(HtmlBlock, XmlDescriptor, EditingDescriptor):  # pylint: di
         resource_fs.makedirs(os.path.dirname(filepath), recreate=True)
         with resource_fs.open(filepath, 'wb') as filestream:
             html_data = self.data.encode('utf-8')
+            log.warning("Following html data is being stored : \n" + html_data)
             filestream.write(html_data)
 
         # write out the relative name
